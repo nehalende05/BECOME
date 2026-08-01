@@ -16,9 +16,14 @@ import { updateGrowthState } from '../services/storage.js'
 // ─── STEP DEFINITIONS ────────────────────────────────────────────────────────
 
 const CURRENT_TRAIT_OPTIONS = [
-  'Procrastinator', 'Easily distracted', 'Inconsistent', 'Perfectionist',
-  'People-pleaser', 'Overthinks decisions', 'Avoids discomfort', 'Impulsive',
-  'Self-doubter', 'Reactive', 'Disorganized', 'Fear of failure',
+  'Procrastination', 'Easily Distracted', 'Inconsistent', 'Perfectionist',
+  'Overwhelmed', 'Burnt Out', 'Struggle To Execute Ideas', 'Afraid Of Failure',
+  'Self-Doubt', 'Undisciplined', 'Time Management', 'Creatively Stuck',
+  'Stressed', 'Unmotivated', 'Unfocused', 'Depressed',
+  'Exhausted', 'Out Of Shape', 'In Debt', 'Isolated',
+  'Fixed Mindset', "Don't Believe In Myself", 'Over-consuming', 'Fitness Inconsistency',
+  'Directionless', 'Absent-minded', 'Impatient', 'Disorganized',
+  'People-pleaser', 'Hesitant'
 ]
 
 const TARGET_TRAIT_OPTIONS = [
