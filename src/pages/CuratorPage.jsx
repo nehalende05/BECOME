@@ -31,19 +31,26 @@ export default function CuratorPage() {
   const { profile, growthState } = useApp()
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [filterType, setFilterType] = useState('All')
 
   const firstName  = profile?.name?.split(' ')[0] || 'Explorer'
   const currentTrait = profile?.currentTraits?.split(',')[0]?.trim() || 'your current self'
   const targetTrait  = profile?.targetTraits?.split(',')[0]?.trim()  || 'your target self'
   const trustScore   = growthState?.trustScore ?? 52
 
-  const loadPreview = async () => {
+  const loadPreview = async (overrideType = filterType) => {
     setLoading(true)
     try {
-      const data = await runGrowthAgent(profile, growthState, 2)
+      const typeToFetch = overrideType === 'All' ? null : overrideType
+      const data = await runGrowthAgent(profile, growthState, 3, typeToFetch)
       setPreview(data)
     } catch (e) { console.error(e) }
     setLoading(false)
+  }
+
+  const handleFilterChange = (type) => {
+    setFilterType(type)
+    loadPreview(type)
   }
 
   useEffect(() => { if (profile) loadPreview() }, [])
@@ -193,7 +200,7 @@ export default function CuratorPage() {
           transition={{ delay: 0.15 }}
           style={{ padding: '28px 32px', background: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>
                 LIVE CURATOR PREVIEW
@@ -202,25 +209,53 @@ export default function CuratorPage() {
                 What your curator is thinking right now for {firstName}
               </p>
             </div>
-            <button
-              onClick={loadPreview}
-              type="button"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#111111', color: '#FFFFFF', border: 'none', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            >
-              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-              Re-generate
-            </button>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { id: 'All', label: 'All Curation' },
+                { id: 'Book', label: '📖 Book Recommendations' },
+                { id: 'Video', label: '🎬 Video Modules' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleFilterChange(tab.id)}
+                  type="button"
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    background: filterType === tab.id ? '#111111' : '#F5F3ED',
+                    color: filterType === tab.id ? '#FFFFFF' : '#444444',
+                    border: '1px solid ' + (filterType === tab.id ? '#111111' : '#E5E2DC'),
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+
+              <button
+                onClick={() => loadPreview(filterType)}
+                type="button"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: '#FFFFFF', color: '#111111', border: '1px solid #111111', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 4 }}
+              >
+                <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+                Re-generate
+              </button>
+            </div>
           </div>
 
           {loading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[1, 2].map(i => (
+              {[1, 2, 3].map(i => (
                 <div key={i} style={{ height: 72, background: '#F8F6F2', borderRadius: 16, animation: 'pulse 1.5s ease-in-out infinite' }} />
               ))}
             </div>
           ) : preview ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {preview.recommendations.slice(0, 2).map((rec, i) => {
+              {preview.recommendations.slice(0, 3).map((rec, i) => {
                 const meta = TYPE_ICON[rec.type] || { icon: Zap, color: '#111111' }
                 const Icon = meta.icon
                 return (
@@ -228,12 +263,17 @@ export default function CuratorPage() {
                     key={rec.id}
                     style={{ display: 'flex', gap: 16, padding: '18px 20px', background: '#FAFAFA', borderRadius: 16, border: '1px solid #F0EDE6' }}
                   >
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon size={16} color="#FFFFFF" />
+                    <div style={{ width: 42, height: 42, borderRadius: 12, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={18} color="#FFFFFF" />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111111', marginBottom: 4 }}>{rec.title}</div>
-                      <div style={{ fontSize: 12, color: '#777777', marginBottom: 6 }}>by {rec.creator} · {rec.duration}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', uppercase: 'uppercase', padding: '2px 8px', borderRadius: 999, background: '#EAE7E1', color: '#111111' }}>
+                          {rec.type}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#777777' }}>by {rec.creator} · {rec.duration}</span>
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#111111', marginBottom: 4 }}>{rec.title}</div>
                       <div style={{ fontSize: 12, color: '#555555', fontStyle: 'italic', lineHeight: 1.5 }}>"{rec.whyThis}"</div>
                     </div>
                     <div style={{ fontSize: 11, color: '#888888', flexShrink: 0, alignSelf: 'flex-start', marginTop: 2 }}>#{i + 1}</div>

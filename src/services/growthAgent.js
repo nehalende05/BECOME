@@ -61,14 +61,23 @@ const determineIntervention = (growthState) => {
 
 // ─── Dynamic Weighted Selection Engine ────────────────────────────────────────
 
-const selectDynamicRecommendations = (profile, growthState, requestedCount = 3) => {
+const selectDynamicRecommendations = (profile, growthState, requestedCount = 3, filterType = null) => {
   const completedIds = getCompletedIds()
   const recentlyShownIds = getRecentlyShownIds()
 
-  // Filter out completed videos
-  let availablePool = CONTENT_LIBRARY.filter(item => !completedIds.includes(item.id))
+  // Filter out completed videos & apply filterType if specified (e.g. 'Book')
+  let availablePool = CONTENT_LIBRARY.filter(item => {
+    if (completedIds.includes(item.id)) return false
+    if (filterType && filterType !== 'All' && item.type.toLowerCase() !== filterType.toLowerCase()) return false
+    return true
+  })
 
-  // Prefer videos not shown in recent sessions
+  // Fallback if pool is empty for specific filter
+  if (availablePool.length === 0) {
+    availablePool = CONTENT_LIBRARY.filter(item => !completedIds.includes(item.id))
+  }
+
+  // Prefer items not shown in recent sessions
   let freshPool = availablePool.filter(item => !recentlyShownIds.includes(item.id))
 
   // If fresh pool is small, reset memory so we can cycle with fresh order
@@ -144,7 +153,7 @@ const selectDynamicRecommendations = (profile, growthState, requestedCount = 3) 
 
 // ─── Main API Export ──────────────────────────────────────────────────────────
 
-export const runGrowthAgent = async (profile, growthState, count = 3) => {
-  console.log(`🤖 BECOME Agent: Generating ${count} dynamic recommendations for ${profile?.name || 'user'}...`)
-  return selectDynamicRecommendations(profile, growthState, count)
+export const runGrowthAgent = async (profile, growthState, count = 3, filterType = null) => {
+  console.log(`🤖 BECOME Agent: Generating ${count} dynamic recommendations (filter: ${filterType || 'All'}) for ${profile?.name || 'user'}...`)
+  return selectDynamicRecommendations(profile, growthState, count, filterType)
 }
