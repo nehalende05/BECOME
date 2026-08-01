@@ -75,11 +75,12 @@ function AppRoutes() {
 // ─────────────────────────────────────────────────
 // Root export — wrapped in MemoryRouter + AppProvider
 // ─────────────────────────────────────────────────
-export default function PvtAgentApp({ onBackToHome }) {
+export default function PvtAgentApp({ onBackToHome, initialRoute: customInitialRoute }) {
   // Smart initial route:
+  // Explicit route passed OR check profile:
   // New users (no profile saved) → /onboarding
   // Returning users (profile exists) → /dashboard
-  const initialRoute = hasProfile() ? '/dashboard' : '/onboarding'
+  const initialRoute = customInitialRoute || (hasProfile() ? '/dashboard' : '/onboarding')
 
   return (
     <BackToHomeContext.Provider value={onBackToHome || (() => {})}>

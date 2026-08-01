@@ -18,6 +18,7 @@ import PvtAgentApp from './PvtAgentApp.jsx';
 export default function App() {
   // ── Flow: Landing → Onboarding (new) or Dashboard (returning) ──
   const [currentView, setCurrentView] = useState('landing');
+  const [initialAgentRoute, setInitialAgentRoute] = useState(null);
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
@@ -25,8 +26,9 @@ export default function App() {
   // New users → go to onboarding first.
   // Returning users (profile exists) → go straight to dashboard.
   const handleStartJourney = () => {
+    setInitialAgentRoute(null); // PvtAgentApp auto-detects based on profile
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    setCurrentView('agent'); // PvtAgentApp decides the initial route
+    setCurrentView('agent');
   };
 
   // Direct open Dashboard (e.g. from nav link if profile exists)
