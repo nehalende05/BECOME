@@ -27,13 +27,13 @@ export const hasProfile = () => !!get('profile', null)
 
 // ===== GROWTH STATE =====
 const DEFAULT_GROWTH_STATE = {
-  trustScore: 50,
+  trustScore: 82,
   momentum: 'medium',     // low | medium | high
-  consistency: 0,         // completion streak
+  consistency: 5,         // completion streak
   identityStage: 'early', // early | mid | advanced
   lastIntervention: null, // LEARN | REFLECT | ACT | CONNECT
-  sessionCount: 0,
-  completedCount: 0,
+  sessionCount: 1,
+  completedCount: 3,
   skippedCount: 0,
 }
 
@@ -42,94 +42,66 @@ export const getGrowthState = () => get('growthState', DEFAULT_GROWTH_STATE)
 export const updateGrowthState = (updates) => {
   const current = getGrowthState()
   const next = { ...current, ...updates, updatedAt: Date.now() }
-
-  // Auto-advance identity stage
-  if (next.completedCount >= 15 && next.identityStage === 'early') {
-    next.identityStage = 'mid'
-  } else if (next.completedCount >= 35 && next.identityStage === 'mid') {
-    next.identityStage = 'advanced'
-  }
-
-  // Auto-adjust momentum
-  if (next.consistency >= 5) next.momentum = 'high'
-  else if (next.consistency >= 2) next.momentum = 'medium'
-  else next.momentum = 'low'
-
   set('growthState', next)
   return next
 }
 
-// ===== RECOMMENDATIONS HISTORY =====
+// ===== RECOMMENDATION LOGGING =====
 export const getRecommendationHistory = () => get('recommendations', [])
 
-export const logRecommendation = (rec, status, feedback = null) => {
+export const logRecommendation = (rec, status = 'completed', feedback = null) => {
   const history = getRecommendationHistory()
-  history.unshift({
-    ...rec,
-    status,       // 'completed' | 'skipped' | 'pending'
+  const entry = {
+    id: rec.id,
+    title: rec.title,
+    type: rec.type,
+    creator: rec.creator,
+    status,
     feedback,
     loggedAt: Date.now(),
-  })
-  // Keep last 100 entries
-  set('recommendations', history.slice(0, 100))
+  }
+  const next = [entry, ...history.filter(h => h.id !== rec.id)]
+  set('recommendations', next)
+  return next
 }
 
 export const getCompletedIds = () => {
   return getRecommendationHistory()
-    .filter(r => r.status === 'completed')
-    .map(r => r.id)
+    .filter(h => h.status === 'completed')
+    .map(h => h.id)
 }
 
-// ===== SESSION LOG =====
+// ===== SESSIONS =====
 export const getSessions = () => get('sessions', [])
 
-export const startSession = (interventionType) => {
-  const session = {
-    id: Date.now().toString(),
-    interventionType,
-    startedAt: Date.now(),
-    endedAt: null,
-    recommendations: [],
-    completed: 0,
-    skipped: 0,
-  }
+export const logSession = (session) => {
   const sessions = getSessions()
-  sessions.unshift(session)
-  set('sessions', sessions.slice(0, 50))
-  set('activeSessionId', session.id)
-  return session
+  const entry = { ...session, id: `session_${Date.now()}`, timestamp: Date.now() }
+  set('sessions', [entry, ...sessions])
+  return entry
 }
 
-export const endSession = () => {
-  const sessionId = get('activeSessionId')
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === sessionId)
-  if (idx !== -1) {
-    sessions[idx].endedAt = Date.now()
-    set('sessions', sessions)
-  }
-  remove('activeSessionId')
-}
-
-// ===== STREAK TRACKING =====
+// ===== STREAK CALCULATION =====
 export const updateStreak = (completed) => {
-  const state = getGrowthState()
+  const current = getGrowthState()
+  let { consistency = 0, trustScore = 50 } = current
+
   if (completed) {
-    return updateGrowthState({
-      consistency: state.consistency + 1,
-      completedCount: state.completedCount + 1,
-      trustScore: Math.min(100, state.trustScore + 7),
-    })
+    consistency += 1
+    trustScore = Math.min(100, trustScore + 3)
   } else {
-    return updateGrowthState({
-      consistency: Math.max(0, state.consistency - 1),
-      skippedCount: state.skippedCount + 1,
-      trustScore: Math.max(0, state.trustScore - 5),
-    })
+    consistency = Math.max(0, consistency - 1)
+    trustScore = Math.max(0, trustScore - 5)
   }
+
+  let momentum = 'medium'
+  if (consistency >= 5) momentum = 'high'
+  if (consistency < 2) momentum = 'low'
+
+  return updateGrowthState({ consistency, trustScore, momentum })
 }
 
-// ===== RESET (for dev / re-onboarding) =====
+// ===== RESET ALL =====
 export const resetAll = () => {
-  ['profile', 'growthState', 'recommendations', 'sessions', 'activeSessionId'].forEach(remove)
+  ['profile', 'growthState', 'recommendations', 'sessions'].forEach(remove)
 }

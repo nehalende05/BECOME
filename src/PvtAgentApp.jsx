@@ -2,22 +2,24 @@
  * PvtAgentApp.jsx
  *
  * Embeds the full pvt-agent BECOME growth curator application
- * inside a MemoryRouter so it runs as a self-contained sub-app
- * after "Start Your Journey" is clicked on the landing page.
- *
- * Accepts an optional `onBackToHome` prop so the user can
- * return to the landing page at any time.
+ * inside a MemoryRouter so it runs as a self-contained sub-app.
+ * ALL routes have the Navigation sidebar.
  */
 
 import React, { createContext, useContext } from 'react'
-import { MemoryRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AppProvider, useApp } from './store/AppContext.jsx'
 import Navigation from './components/Navigation.jsx'
 import OnboardingPage from './pages/OnboardingPage.jsx'
-import DashboardPage from './pages/DashboardPage.jsx'
-import SessionPage from './pages/SessionPage.jsx'
-import JourneyPage from './pages/JourneyPage.jsx'
+import DashboardPage  from './pages/DashboardPage.jsx'
+import SessionPage    from './pages/SessionPage.jsx'
+import JourneyPage    from './pages/JourneyPage.jsx'
+import CuratorPage    from './pages/CuratorPage.jsx'
+import LibraryPage    from './pages/LibraryPage.jsx'
+import RoadmapPage    from './pages/RoadmapPage.jsx'
+import ProfilePage    from './pages/ProfilePage.jsx'
+import { hasProfile } from './services/storage.js'
 
 import './pvt-agent-styles.css'
 
@@ -26,14 +28,13 @@ export const BackToHomeContext = createContext(() => {})
 export const useBackToHome = () => useContext(BackToHomeContext)
 
 // ─────────────────────────────────────────────────
-// Protected layout: sidebar nav + page content
+// Protected layout: ALL pages get the sidebar + main content area
 // ─────────────────────────────────────────────────
 function ProtectedLayout() {
-  const { hasProfile, isLoaded } = useApp()
+  const { isLoaded } = useApp()
   const location = useLocation()
 
   if (!isLoaded) return null
-  if (!hasProfile) return <Navigate to="/onboarding" replace />
 
   return (
     <div className="page-layout gradient-mesh">
@@ -41,9 +42,13 @@ function ProtectedLayout() {
       <main className="main-content">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/session"   element={<SessionPage />} />
-            <Route path="/journey"   element={<JourneyPage />} />
+            <Route path="/dashboard" element={<DashboardPage />}  />
+            <Route path="/session"   element={<SessionPage />}    />
+            <Route path="/journey"   element={<JourneyPage />}    />
+            <Route path="/curator"   element={<CuratorPage />}    />
+            <Route path="/library"   element={<LibraryPage />}    />
+            <Route path="/roadmap"   element={<RoadmapPage />}    />
+            <Route path="/profile"   element={<ProfilePage />}    />
             <Route path="*"          element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </AnimatePresence>
@@ -56,16 +61,13 @@ function ProtectedLayout() {
 // Router-aware app routes
 // ─────────────────────────────────────────────────
 function AppRoutes() {
-  const { hasProfile, isLoaded } = useApp()
+  const { isLoaded } = useApp()
   if (!isLoaded) return null
 
   return (
     <Routes>
-      <Route
-        path="/onboarding"
-        element={hasProfile ? <Navigate to="/dashboard" replace /> : <OnboardingPage />}
-      />
-      <Route path="/*" element={<ProtectedLayout />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
+      <Route path="/*"          element={<ProtectedLayout />} />
     </Routes>
   )
 }
@@ -74,6 +76,11 @@ function AppRoutes() {
 // Root export — wrapped in MemoryRouter + AppProvider
 // ─────────────────────────────────────────────────
 export default function PvtAgentApp({ onBackToHome }) {
+  // Smart initial route:
+  // New users (no profile saved) → /onboarding
+  // Returning users (profile exists) → /dashboard
+  const initialRoute = hasProfile() ? '/dashboard' : '/onboarding'
+
   return (
     <BackToHomeContext.Provider value={onBackToHome || (() => {})}>
       <motion.div
@@ -83,7 +90,7 @@ export default function PvtAgentApp({ onBackToHome }) {
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
         <AppProvider>
-          <MemoryRouter initialEntries={['/onboarding']} initialIndex={0}>
+          <MemoryRouter initialEntries={[initialRoute]} initialIndex={0}>
             <AppRoutes />
           </MemoryRouter>
         </AppProvider>

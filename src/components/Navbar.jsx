@@ -23,7 +23,6 @@ export default function Navbar({ onOpenModal, onOpenDashboard }) {
     { name: 'Dashboard', href: '#dashboard', onClick: onOpenDashboard },
     { name: 'Roadmap', href: '#roadmap' },
     { name: 'AI Team', href: '#ai-team' },
-    { name: 'Pricing', href: '#pricing' },
   ];
 
   return (

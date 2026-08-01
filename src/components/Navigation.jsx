@@ -1,13 +1,15 @@
 /**
- * Navigation.jsx — Light Off-White Sidebar (Matches Screenshot #4)
+ * Navigation.jsx — Left Sidebar (Matches Screenshot Design)
+ * Items: Dashboard, Today's Session, Journey, Curator, Library, Roadmap, Profile
  */
 
 import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, PlayCircle, BookOpen, ChevronLeft, ChevronRight,
-  RotateCcw, ArrowLeft
+  LayoutDashboard, PlayCircle, Compass, Sparkles,
+  Library, Map, User, ChevronLeft, ChevronRight,
+  RotateCcw, ArrowLeft, BookOpen
 } from 'lucide-react'
 import { useApp } from '../store/AppContext.jsx'
 import { useBackToHome } from '../PvtAgentApp.jsx'
@@ -15,7 +17,11 @@ import { useBackToHome } from '../PvtAgentApp.jsx'
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/session',   icon: PlayCircle,       label: "Today's Session" },
-  { to: '/journey',   icon: BookOpen,         label: 'My Journey' },
+  { to: '/journey',   icon: Compass,          label: 'Journey' },
+  { to: '/curator',   icon: Sparkles,         label: 'Curator' },
+  { to: '/library',   icon: Library,          label: 'Library' },
+  { to: '/roadmap',   icon: Map,              label: 'Roadmap' },
+  { to: '/profile',   icon: User,             label: 'Profile' },
 ]
 
 export default function Navigation() {
@@ -31,11 +37,12 @@ export default function Navigation() {
     }
   }
 
-  const userName = profile?.name || 'neha'
+  const userName = profile?.name || 'NEha'
+  const firstName = userName.split(' ')[0]
 
   return (
     <motion.nav
-      animate={{ width: collapsed ? 72 : 240 }}
+      animate={{ width: collapsed ? 72 : 220 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
       style={{
         position: 'fixed', top: 0, left: 0, height: '100vh',
@@ -43,85 +50,93 @@ export default function Navigation() {
         borderRight: '1px solid #E5E2DC',
         display: 'flex', flexDirection: 'column',
         zIndex: 100, overflow: 'hidden',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
       }}
     >
-      {/* Brand Logo */}
+      {/* ── Brand Logo ── */}
       <div style={{
-        padding: collapsed ? '20px 0' : '24px 24px 16px',
-        display: 'flex', alignItems: 'center', gap: 10,
+        padding: collapsed ? '22px 0' : '24px 24px 12px',
+        display: 'flex', alignItems: 'center',
         justifyContent: collapsed ? 'center' : 'flex-start',
       }}>
         <AnimatePresence>
           {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
+            <motion.span
+              initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
+              exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.15 }}
-            >
-              <span style={{
+              style={{
                 fontFamily: 'Inter, -apple-system, sans-serif',
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: 900,
                 color: '#111111',
                 letterSpacing: '-0.5px',
-                textTransform: 'uppercase'
-              }}>
-                BECOME
-              </span>
+                textTransform: 'uppercase',
+              }}
+            >
+              BECOME
+            </motion.span>
+          )}
+        </AnimatePresence>
+        {collapsed && (
+          <span style={{
+            fontFamily: 'Inter, -apple-system, sans-serif',
+            fontSize: 14, fontWeight: 900, color: '#111111',
+            letterSpacing: '-0.5px', textTransform: 'uppercase',
+          }}>B</span>
+        )}
+      </div>
+
+      {/* ── User Info ── */}
+      <div style={{
+        padding: collapsed ? '10px 0' : '10px 20px 14px',
+        display: 'flex', alignItems: 'center', gap: 10,
+        justifyContent: collapsed ? 'center' : 'flex-start',
+      }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%',
+          backgroundColor: '#111111',
+          color: '#FFFFFF',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, fontSize: 13, fontWeight: 700,
+        }}>
+          {firstName[0]?.toUpperCase() || 'N'}
+        </div>
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111111', lineHeight: 1.2 }}>
+                {firstName}
+              </div>
+              <div style={{ fontSize: 11, color: '#777777', marginTop: 1 }}>
+                Growth Curator
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* User Info Header */}
-      {profile && (
-        <div style={{
-          padding: collapsed ? '12px 0' : '16px 24px',
-          display: 'flex', alignItems: 'center', gap: 12,
-          justifyContent: collapsed ? 'center' : 'flex-start',
-          marginBottom: 8,
-        }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            backgroundColor: '#111111',
-            color: '#FFFFFF',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, fontSize: 14, fontWeight: 700,
-          }}>
-            {userName[0].toUpperCase()}
-          </div>
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#111111', lineHeight: 1.2 }}>
-                  {userName}
-                </div>
-                <div style={{ fontSize: 11, color: '#777777', marginTop: 2 }}>
-                  Growth Curator
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* Nav Links */}
-      <div style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
+      {/* ── Nav Links ── */}
+      <div style={{ flex: 1, padding: '6px 10px', overflowY: 'auto' }}>
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: collapsed ? '12px 0' : '11px 16px',
+              display: 'flex', alignItems: 'center', gap: 11,
+              padding: collapsed ? '11px 0' : '10px 14px',
               justifyContent: collapsed ? 'center' : 'flex-start',
-              margin: '3px 0', borderRadius: 12,
-              textDecoration: 'none', transition: 'all 0.18s ease',
+              margin: '2px 0', borderRadius: 10,
+              textDecoration: 'none', transition: 'all 0.15s ease',
               background: isActive ? '#FFFFFF' : 'transparent',
               color: isActive ? '#111111' : '#666666',
-              boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.04)' : 'none',
+              boxShadow: isActive ? '0 1px 6px rgba(0,0,0,0.06)' : 'none',
               border: isActive ? '1px solid #E5E2DC' : '1px solid transparent',
               fontWeight: isActive ? 600 : 500,
               fontSize: 13,
@@ -129,10 +144,19 @@ export default function Navigation() {
           >
             {({ isActive }) => (
               <>
-                <Icon size={17} strokeWidth={isActive ? 2.2 : 1.7} style={{ flexShrink: 0, color: isActive ? '#111111' : '#777777' }} />
+                <Icon
+                  size={16}
+                  strokeWidth={isActive ? 2.2 : 1.8}
+                  style={{ flexShrink: 0, color: isActive ? '#111111' : '#777777' }}
+                />
                 <AnimatePresence>
                   {!collapsed && (
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
                       {label}
                     </motion.span>
                   )}
@@ -143,36 +167,35 @@ export default function Navigation() {
         ))}
       </div>
 
-      {/* AI Curator Badge Box at Bottom Left */}
+      {/* ── AI Curator Badge at Bottom ── */}
       {!collapsed && (
-        <div style={{ padding: '0 16px 16px', position: 'relative' }}>
+        <div style={{ padding: '0 12px 12px' }}>
           <div style={{
-            position: 'relative',
-            padding: '12px',
+            padding: '10px 12px',
             backgroundColor: '#FFFFFF',
             border: '1px solid #E5E2DC',
-            borderRadius: 14,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+            borderRadius: 12,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#111111' }}>AI Curator</span>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10B981' }} />
+              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
             </div>
             <p style={{ fontSize: 10, color: '#777777', margin: 0, lineHeight: 1.4 }}>
-              Always learning.<br/>Always with you.
+              Always learning.<br />Always with you.
             </p>
           </div>
         </div>
       )}
 
-      {/* Bottom Footer Actions */}
+      {/* ── Bottom Actions ── */}
       <div style={{
-        padding: collapsed ? '12px 0' : '12px 16px',
+        padding: collapsed ? '10px 0' : '10px 12px',
         borderTop: '1px solid #E5E2DC',
         display: 'flex',
         justifyContent: collapsed ? 'center' : 'space-between',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
       }}>
         {!collapsed && (
           <button
@@ -184,26 +207,30 @@ export default function Navigation() {
               borderRadius: 8,
               color: '#333333',
               cursor: 'pointer',
-              padding: '6px 10px',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 12, fontWeight: 600,
+              padding: '5px 9px',
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11, fontWeight: 600,
               transition: 'all 0.15s',
             }}
           >
-            <ArrowLeft size={13} /> Home
+            <ArrowLeft size={12} /> Home
           </button>
         )}
 
         {!collapsed && (
-          <button onClick={handleReset} title="Reset data" type="button" style={{
-            background: 'none', border: 'none', color: '#999999',
-            cursor: 'pointer', padding: '6px', borderRadius: 6,
-            display: 'flex', alignItems: 'center', transition: 'color 0.15s',
-          }}
-          onMouseEnter={e => e.target.style.color = '#F43F5E'}
-          onMouseLeave={e => e.target.style.color = '#999999'}
+          <button
+            onClick={handleReset}
+            title="Reset data"
+            type="button"
+            style={{
+              background: 'none', border: 'none', color: '#999999',
+              cursor: 'pointer', padding: '5px', borderRadius: 6,
+              display: 'flex', alignItems: 'center', transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#F43F5E'}
+            onMouseLeave={e => e.currentTarget.style.color = '#999999'}
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={13} />
           </button>
         )}
 
@@ -215,11 +242,11 @@ export default function Navigation() {
             border: '1px solid #E0DDD6',
             borderRadius: 8,
             color: '#555555',
-            cursor: 'pointer', padding: '6px 8px',
+            cursor: 'pointer', padding: '5px 7px',
             display: 'flex', alignItems: 'center', transition: 'all 0.15s',
           }}
         >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
         </button>
       </div>
     </motion.nav>

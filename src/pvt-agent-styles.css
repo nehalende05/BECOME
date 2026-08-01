@@ -40,7 +40,7 @@
   --color-text-secondary: #555555;
   --color-text-tertiary: #888888;
 
-  --nav-width: 240px;
+  --nav-width: 220px;
   --nav-width-collapsed: 72px;
 
   font-family: var(--font-sans);

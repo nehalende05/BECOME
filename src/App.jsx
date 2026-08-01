@@ -2,28 +2,31 @@ import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import CuratorSection from './components/CuratorSection';
-import DashboardMockup from './components/DashboardMockup';
 import IdentityTimeline from './components/IdentityTimeline';
 import PersonalAITeam from './components/PersonalAITeam';
 import ReasoningEngine from './components/ReasoningEngine';
 import HowItWorks from './components/HowItWorks';
-import PricingSection from './components/PricingSection';
 import FinalCTA from './components/FinalCTA';
 import Footer from './components/Footer';
 import OnboardingModal from './components/OnboardingModal';
 import VideoDemoModal from './components/VideoDemoModal';
+import { hasProfile } from './services/storage.js';
 
 // pvt-agent — the full AI growth curator app
 import PvtAgentApp from './PvtAgentApp.jsx';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('landing'); // Opens directly to the initial Landing page with Hero!
+  // ── Flow: Landing → Onboarding (new) or Dashboard (returning) ──
+  const [currentView, setCurrentView] = useState('landing');
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  const handleOpenDashboard = () => {
-    setCurrentView('agent');
+  // Called when user clicks any CTA on the landing page.
+  // New users → go to onboarding first.
+  // Returning users (profile exists) → go straight to dashboard.
+  const handleStartJourney = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCurrentView('agent'); // PvtAgentApp decides the initial route
   };
 
   const handleBackToHome = () => {
@@ -31,35 +34,33 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // When agent view is active → render pvt-agent app
+  // Render the full BECOME app (onboarding or dashboard, depending on profile)
   if (currentView === 'agent') {
     return <PvtAgentApp onBackToHome={handleBackToHome} />;
   }
 
-  // Render initial landing page with Hero section
+  // Otherwise render the landing page
   return (
     <div className="min-h-screen bg-[#F6F4EF] text-[#111111] font-sans relative selection:bg-black selection:text-white">
       <div className="paper-grain" />
 
       <Navbar
-        onOpenModal={handleOpenDashboard}
-        onOpenDashboard={handleOpenDashboard}
+        onOpenModal={handleStartJourney}
+        onOpenDashboard={handleStartJourney}
       />
 
       <Hero
-        onOpenModal={handleOpenDashboard}
+        onOpenModal={handleStartJourney}
         onOpenDemo={() => setIsDemoOpen(true)}
       />
 
       <CuratorSection />
-      <DashboardMockup />
       <IdentityTimeline />
       <PersonalAITeam />
       <ReasoningEngine />
-      <HowItWorks onOpenModal={handleOpenDashboard} />
-      <PricingSection onOpenModal={handleOpenDashboard} />
-      <FinalCTA onOpenModal={handleOpenDashboard} />
-      <Footer onOpenModal={handleOpenDashboard} />
+      <HowItWorks onOpenModal={handleStartJourney} />
+      <FinalCTA onOpenModal={handleStartJourney} />
+      <Footer onOpenModal={handleStartJourney} />
 
       <OnboardingModal
         isOpen={isOnboardingOpen}

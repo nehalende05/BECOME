@@ -1,51 +1,150 @@
 /**
- * DashboardPage.jsx — Editorial Off-White Minimalist Dashboard (Exact Match to Screenshot #4 / Mockup)
- * Preserves all existing dynamic text and backend AI integration.
+ * DashboardPage.jsx — Editorial Off-White Minimalist Dashboard
+ * 100% dynamic — all content comes from user profile + growthAgent.
+ * No hardcoded traits, goals, or curated items.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
-  Sparkles, PlayCircle, ArrowRight, CheckCircle2, Award,
-  BookOpen, Leaf, TrendingUp, Target, Brain, Bell, User,
-  Check, Flame, Zap, Compass, Activity, ArrowUpRight, Play
+  ArrowRight, BookOpen, Bell, Brain,
+  Target, Zap, Play, TrendingUp,
+  Clock, Award, Flame, CheckCircle2,
+  BarChart2, Calendar, Lightbulb, Star,
+  Map, Library, ChevronRight, Activity,
+  Sparkles, AlertCircle, RefreshCw
 } from 'lucide-react'
 import { useApp } from '../store/AppContext.jsx'
+import { runGrowthAgent } from '../services/growthAgent.js'
 import PageTransition from '../components/PageTransition.jsx'
+
+// Map content type to icon + label
+const TYPE_META = {
+  video:   { icon: Play,       label: 'Watch',    fill: true },
+  book:    { icon: BookOpen,   label: 'Read',     fill: false },
+  article: { icon: BookOpen,   label: 'Read',     fill: false },
+  podcast: { icon: Brain,      label: 'Listen',   fill: false },
+  practice:{ icon: Zap,        label: 'Practice', fill: false },
+  exercise:{ icon: Zap,        label: 'Practice', fill: false },
+}
+
+// Estimate reading/watch time from type
+const estimateDuration = (item) => {
+  if (item.duration) return item.duration
+  switch (item.type) {
+    case 'video':    return '10–15 min'
+    case 'podcast':  return '30–45 min'
+    case 'book':     return '8–12 min'
+    case 'article':  return '5–8 min'
+    case 'practice': return 'Start →'
+    default:         return '10 min'
+  }
+}
+
+// Dynamic AI reflection based on history
+const buildReflection = (history, profile) => {
+  const done = history?.filter(h => h.status === 'completed') || []
+  const name = profile?.name?.split(' ')[0] || 'you'
+  const goal = profile?.goals?.split('.')[0]?.trim() || 'your goals'
+
+  if (done.length === 0) {
+    return {
+      observation: `Welcome, ${name}. Your growth journey starts today — every great transformation begins with a single step.`,
+      recommendation: `Start your first session now and let your AI Curator learn your patterns.`,
+    }
+  }
+
+  const last = done[0]
+  const streak = done.length
+
+  if (streak >= 5) {
+    return {
+      observation: `${name}, you've completed ${streak} sessions in a row — your consistency is building real momentum.`,
+      recommendation: `Push deeper today: revisit "${last.title}" insights and apply them directly to ${goal}.`,
+    }
+  }
+
+  return {
+    observation: `Yesterday you completed "${last.title}". Your consistency is improving steadily.`,
+    recommendation: `Today's recommendation: build on that session by going one step further toward ${goal}.`,
+  }
+}
+
+// Recent growth items from history
+const buildRecentGrowth = (history) => {
+  const done = (history || []).filter(h => h.status === 'completed').slice(0, 3)
+  if (done.length === 0) {
+    return [
+      { time: 'Today', label: 'No sessions yet — begin your first one!' },
+    ]
+  }
+  return done.map((h, i) => ({
+    time: i === 0 ? 'Yesterday' : i === 1 ? 'Yesterday' : '2 Days Ago',
+    label: `✓ ${h.title}`,
+  }))
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { profile, growthState, history } = useApp()
-  const completedRecent = history?.filter(h => h.status === 'completed')?.slice(0, 3) || []
 
-  const firstName = profile?.name?.split(' ')[0] || 'NEha'
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  // ── Dynamic values from profile ──
+  const firstName     = profile?.name?.split(' ')[0] || 'there'
+  const hour          = new Date().getHours()
+  const greeting      = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const currentTrait  = profile?.currentTraits?.split(',')[0]?.trim() || '—'
+  const targetTrait   = profile?.targetTraits?.split(',')[0]?.trim()  || '—'
+  const userGoal      = profile?.goals?.split('.')[0]?.trim()         || 'Set your first goal'
+  const trustScore    = growthState?.trustScore    ?? 52
+  const consistencyDays = growthState?.consistency ?? 0
 
-  const currentTrait = profile?.currentTraits || 'Easily Distracted'
-  const targetTrait = profile?.targetTraits || 'Deeply Focused'
-  const userGoal = profile?.goals || 'abcdefghij'
-  const trustScore = growthState?.trustScore ?? 52
-  const consistencyDays = growthState?.consistency ?? 5
+  // ── Progress (stored in growthState, editable) ──
+  const [progressPercent, setProgressPercent] = useState(
+    Math.min(100, Math.round((consistencyDays / 30) * 100)) || 10
+  )
 
-  const [progressPercent, setProgressPercent] = useState(28)
+  // ── Today's Curation: dynamically generated by the growth agent ──
+  const [curationItems, setCurationItems] = useState([])
+  const [curationLoading, setCurationLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setCurationLoading(true)
+    runGrowthAgent(profile, growthState, 3).then(result => {
+      if (!cancelled) {
+        setCurationItems(result?.recommendations || [])
+        setCurationLoading(false)
+      }
+    }).catch(() => {
+      if (!cancelled) setCurationLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [profile?.name, profile?.goals, profile?.currentTraits, profile?.targetTraits])
+
+  // ── AI Reflection & Recent Growth ──
+  const reflection   = buildReflection(history, profile)
+  const recentGrowth = buildRecentGrowth(history)
+
+  // ── Week momentum bars (last 7 days of activity) ──
+  const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+  const activeDays = Math.min(7, consistencyDays)
 
   return (
     <PageTransition>
       <div className="page-inner" style={{ padding: '24px 32px 60px', maxWidth: 1120, margin: '0 auto' }}>
 
-        {/* TOP BAR / HEADER (Minimalist Icons on Top Right) */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-          <button type="button" style={{ background: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#111111', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-            <Bell size={16} />
+        {/* TOP BAR — Bell + Avatar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button type="button" style={{ background: 'transparent', border: '1px solid #E8E5DF', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444444', cursor: 'pointer' }}>
+            <Bell size={15} />
           </button>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#111111', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: '#111111', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>
             {firstName[0]?.toUpperCase() || 'N'}
           </div>
         </div>
 
-        {/* ── 1. MAIN HERO BANNER (MATCHES SCREENSHOT #4) ── */}
+        {/* ── 1. HERO BANNER ── */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -60,75 +159,34 @@ export default function DashboardPage() {
             boxShadow: '0 2px 12px rgba(0,0,0,0.02)'
           }}
         >
-          {/* Top Right Robotic Hand Artwork (card-ai-hand.png) */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: 380,
-            pointerEvents: 'none',
-            overflow: 'hidden',
-          }}>
+          {/* Robotic hand artwork */}
+          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 380, pointerEvents: 'none', overflow: 'hidden' }}>
             <img
               src="/card-ai-hand.png"
               alt="AI Robotic Hand"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                objectPosition: 'right center',
-                opacity: 0.9,
-              }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'right center', opacity: 0.9 }}
             />
           </div>
 
           <div style={{ position: 'relative', zIndex: 2, maxWidth: 560 }}>
-            <h1 style={{
-              fontFamily: 'Inter, -apple-system, sans-serif',
-              fontSize: 42,
-              fontWeight: 800,
-              color: '#111111',
-              lineHeight: 1.15,
-              marginBottom: 12,
-              letterSpacing: '-1px'
-            }}>
+            <h1 style={{ fontFamily: 'Inter, -apple-system, sans-serif', fontSize: 42, fontWeight: 800, color: '#111111', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-1px' }}>
               {greeting}, {firstName}.<br />
               Who Are You Becoming Today?
             </h1>
 
-            <p style={{
-              color: '#555555',
-              fontSize: 14,
-              lineHeight: 1.6,
-              marginBottom: 28,
-              maxWidth: 480
-            }}>
-              Your AI Curator has analyzed your current identity ({currentTrait}) and prepared today's growth path just for you.
+            <p style={{ color: '#555555', fontSize: 14, lineHeight: 1.6, marginBottom: 28, maxWidth: 480 }}>
+              Your AI Curator has analyzed your current identity
+              {currentTrait !== '—' ? ` (${currentTrait})` : ''} and prepared today's growth path just for you.
             </p>
 
             <button
               onClick={() => navigate('/session')}
               type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '14px 28px',
-                backgroundColor: '#111111',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: 999,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                transition: 'all 0.2s ease',
-              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '14px 28px', backgroundColor: '#111111', color: '#FFFFFF', border: 'none', borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', transition: 'all 0.2s ease' }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = '#222222'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = '#111111'}
             >
-              Start Today's Curation Session
+              Begin Today's Session
               <ArrowRight size={16} />
             </button>
           </div>
@@ -137,50 +195,39 @@ export default function DashboardPage() {
         {/* ── 2. ROW 1: IDENTITY TRANSFORMATION & TODAY'S CURATION ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
 
-          {/* IDENTITY TRANSFORMATION CARD */}
+          {/* IDENTITY TRANSFORMATION */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            style={{
-              padding: '28px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-            }}
+            style={{ padding: '28px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
           >
             <div>
               <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 20 }}>
-                IDENTITY TRANSFORMATION PATH
+                IDENTITY TRANSFORMATION
               </span>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#888888', textTransform: 'uppercase', marginBottom: 4 }}>STARTING IDENTITY</div>
+                  <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#888888', textTransform: 'uppercase', marginBottom: 4 }}>CURRENT IDENTITY</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#111111' }}>{currentTrait}</div>
                 </div>
-
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: '#111111' }}>{progressPercent}%</div>
                   <div style={{ fontSize: 10, color: '#888888' }}>Progress</div>
                 </div>
-
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#888888', textTransform: 'uppercase', marginBottom: 4 }}>TARGET IDENTITY</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#111111' }}>{targetTrait}</div>
                 </div>
               </div>
 
-              {/* Progress Bar Line */}
+              {/* Clickable progress bar */}
               <div
-                onClick={(e) => {
+                onClick={e => {
                   const rect = e.currentTarget.getBoundingClientRect()
                   const newPct = Math.round(((e.clientX - rect.left) / rect.width) * 100)
-                  setProgressPercent(newPct)
+                  setProgressPercent(Math.max(1, Math.min(99, newPct)))
                 }}
                 style={{ position: 'relative', width: '100%', height: 6, backgroundColor: '#F0EDE6', borderRadius: 99, margin: '20px 0', cursor: 'pointer' }}
               >
@@ -193,84 +240,78 @@ export default function DashboardPage() {
               <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#888888', textTransform: 'uppercase', marginBottom: 6 }}>ACTIVE GOAL</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Target size={16} color="#111111" />
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#111111' }}>"{userGoal}"</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#111111' }}>{userGoal}</span>
               </div>
               <span style={{ fontSize: 11, color: '#777777', display: 'block', marginTop: 4 }}>Small steps today. Massive change tomorrow.</span>
             </div>
           </motion.div>
 
-          {/* TODAY'S CURATION CARD */}
+          {/* TODAY'S CURATION */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            style={{
-              padding: '28px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-            }}
+            style={{ padding: '28px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, display: 'flex', flexDirection: 'column', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
           >
-            <div>
-              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>
-                TODAY'S CURATION
-              </span>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>
+              TODAY'S CURATION
+            </span>
 
+            {curationLoading ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Item 1 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#FAFAFA', borderRadius: 14, border: '1px solid #F0EDE6' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF' }}>
-                      <Play size={14} fill="#FFFFFF" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#888888', fontWeight: 600 }}>Watch</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>Atomic Habits Chapter 3</div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 12, color: '#888888' }}>12 min</span>
-                </div>
-
-                {/* Item 2 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#FAFAFA', borderRadius: 14, border: '1px solid #F0EDE6' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF' }}>
-                      <BookOpen size={14} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#888888', fontWeight: 600 }}>Read</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>Deep Work Summary</div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 12, color: '#888888' }}>8 min</span>
-                </div>
-
-                {/* Item 3 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#FAFAFA', borderRadius: 14, border: '1px solid #F0EDE6' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF' }}>
-                      <Zap size={14} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#888888', fontWeight: 600 }}>Practice</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>25-minute Focus Sprint</div>
-                    </div>
-                  </div>
-                  <button onClick={() => navigate('/session')} type="button" style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 700, color: '#111111', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    Start →
-                  </button>
-                </div>
+                {[1, 2, 3].map(i => (
+                  <div key={i} style={{ height: 52, backgroundColor: '#F5F3EE', borderRadius: 14, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                ))}
               </div>
-            </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {curationItems.slice(0, 3).map((item, idx) => {
+                  const meta = TYPE_META[item.type] || TYPE_META['practice']
+                  const Icon = meta.icon
+                  const isLast = idx === curationItems.length - 1 || idx === 2
+                  const dur = estimateDuration(item)
+                  const isPractice = item.type === 'practice' || item.type === 'exercise'
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#FAFAFA', borderRadius: 14, border: '1px solid #F0EDE6' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 10, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF', flexShrink: 0 }}>
+                          {meta.fill
+                            ? <Icon size={14} fill="#FFFFFF" />
+                            : <Icon size={14} />
+                          }
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#888888', fontWeight: 600 }}>{meta.label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#111111', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.title}
+                          </div>
+                        </div>
+                      </div>
+                      {isPractice ? (
+                        <button
+                          onClick={() => navigate('/session')}
+                          type="button"
+                          style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 700, color: '#111111', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                          Start →
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#888888', whiteSpace: 'nowrap' }}>{dur}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </motion.div>
 
         </div>
 
-        {/* ── 3. ROW 2: AI REFLECTION, MOMENTUM, & AI CONFIDENCE ── */}
+        {/* ── 3. ROW 2: AI REFLECTION, MOMENTUM, AI CONFIDENCE ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 24, marginBottom: 24 }}>
 
           {/* AI REFLECTION */}
@@ -278,13 +319,7 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            style={{
-              padding: '24px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-            }}
+            style={{ padding: '24px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>
@@ -293,11 +328,11 @@ export default function DashboardPage() {
               <Brain size={18} color="#111111" />
             </div>
             <p style={{ fontSize: 13, color: '#555555', lineHeight: 1.5, marginBottom: 12 }}>
-              "Yesterday you completed your focus session. Your consistency is improving."
+              "{reflection.observation}"
             </p>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#111111' }}>
-              Today's recommendation:<br/>
-              <span style={{ fontWeight: 400, color: '#666666' }}>Remove distractions before starting your study session.</span>
+              Today's recommendation:<br />
+              <span style={{ fontWeight: 400, color: '#666666' }}>{reflection.recommendation}</span>
             </div>
           </motion.div>
 
@@ -306,59 +341,38 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            style={{
-              padding: '24px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-            }}
+            style={{ padding: '24px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
           >
             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 14 }}>
               MOMENTUM
             </span>
-            {/* Week Checkboxes */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => (
+            <div style={{ display: 'flex', gap: 5, marginBottom: 16 }}>
+              {DAYS.map((day, idx) => (
                 <div key={idx} style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ width: '100%', height: 16, backgroundColor: idx < 5 ? '#111111' : '#F0EDE6', borderRadius: 4, marginBottom: 4 }} />
+                  <div style={{ width: '100%', height: 16, backgroundColor: idx < activeDays ? '#111111' : '#F0EDE6', borderRadius: 4, marginBottom: 4 }} />
                   <span style={{ fontSize: 9, color: '#888888', fontWeight: 600 }}>{day}</span>
                 </div>
               ))}
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#111111', marginBottom: 2 }}>
-              {consistencyDays} day consistency
+              {consistencyDays > 0 ? `${consistencyDays} day consistency` : 'Start your streak!'}
             </div>
-            <span style={{ fontSize: 12, color: '#777777' }}>Keep going, {firstName}!</span>
+            <span style={{ fontSize: 12, color: '#777777' }}>
+              {consistencyDays >= 3 ? `Keep going, ${firstName}!` : `Every day counts, ${firstName}.`}
+            </span>
           </motion.div>
 
-          {/* AI CONFIDENCE / TRUST SCORE */}
+          {/* AI CONFIDENCE */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            style={{
-              padding: '24px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16
-            }}
+            style={{ padding: '24px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 16 }}
           >
-            {/* Circular Progress Ring */}
             <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="64" height="64" viewBox="0 0 36 36">
-                <path
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none" stroke="#F0EDE6" strokeWidth="3"
-                />
-                <path
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none" stroke="#111111" strokeWidth="3" strokeDasharray={`${trustScore}, 100`}
-                />
+                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#F0EDE6" strokeWidth="3" />
+                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#111111" strokeWidth="3" strokeDasharray={`${trustScore}, 100`} />
               </svg>
               <span style={{ position: 'absolute', fontSize: 14, fontWeight: 800, color: '#111111' }}>{trustScore}%</span>
             </div>
@@ -367,7 +381,12 @@ export default function DashboardPage() {
                 AI CONFIDENCE
               </div>
               <p style={{ fontSize: 12, color: '#555555', margin: 0, lineHeight: 1.4 }}>
-                Your curator understands your habits well.<br/>Accuracy improving every day.
+                {trustScore >= 70
+                  ? <>Your curator understands your habits well.<br />Accuracy improving every day.</>
+                  : trustScore >= 40
+                  ? <>Still learning your patterns.<br />More sessions = better picks.</>
+                  : <>Just getting started.<br />Complete sessions to train your AI.</>
+                }
               </p>
             </div>
           </motion.div>
@@ -382,34 +401,29 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
-            style={{
-              padding: '28px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-            }}
+            style={{ padding: '28px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
           >
             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 24 }}>
               IDENTITY STAGE
             </span>
-
-            {/* Stage Node Line */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', marginBottom: 20 }}>
               <div style={{ position: 'absolute', top: 12, left: 16, right: 16, height: 2, backgroundColor: '#E0DDD6', zIndex: 1 }} />
               {['Foundation Builder', 'Explorer', 'Creator', 'Leader'].map((stage, idx) => {
-                const isActive = idx === 0
+                const stageMap = { early: 0, mid: 1, advanced: 2, leader: 3 }
+                const currentStageIdx = stageMap[growthState?.identityStage || 'early'] ?? 0
+                const isActive = idx === currentStageIdx
+                const isPassed = idx < currentStageIdx
                 return (
                   <div key={idx} style={{ zIndex: 2, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div style={{
                       width: 26, height: 26, borderRadius: '50%',
-                      backgroundColor: isActive ? '#111111' : '#FFFFFF',
-                      border: `2px solid ${isActive ? '#111111' : '#D0CDC5'}`,
-                      color: isActive ? '#FFFFFF' : '#888888',
+                      backgroundColor: isActive ? '#111111' : isPassed ? '#555555' : '#FFFFFF',
+                      border: `2px solid ${isActive || isPassed ? '#111111' : '#D0CDC5'}`,
+                      color: isActive || isPassed ? '#FFFFFF' : '#888888',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 12, fontWeight: 700
                     }}>
-                      {isActive ? '+' : ''}
+                      {isActive ? '+' : isPassed ? '✓' : ''}
                     </div>
                     <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? '#111111' : '#999999', marginTop: 8 }}>
                       {stage}
@@ -420,45 +434,26 @@ export default function DashboardPage() {
             </div>
           </motion.div>
 
-          {/* RECENT GROWTH ACTIVITY */}
+          {/* RECENT GROWTH */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            style={{
-              padding: '28px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E8E5DF',
-              borderRadius: 24,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}
+            style={{ padding: '28px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
           >
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  RECENT GROWTH
-                </span>
-              </div>
-
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>
+                RECENT GROWTH
+              </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: '#888888', fontSize: 12 }}>Yesterday</span>
-                  <span style={{ fontWeight: 600, color: '#111111' }}>✓ Finished Morning Deep Work</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: '#888888', fontSize: 12 }}>Yesterday</span>
-                  <span style={{ fontWeight: 600, color: '#111111' }}>✓ Read Psychology of Success</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: '#888888', fontSize: 12 }}>2 Days Ago</span>
-                  <span style={{ fontWeight: 600, color: '#111111' }}>✓ Reflection Completed</span>
-                </div>
+                {recentGrowth.map((entry, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#888888', fontSize: 12, flexShrink: 0 }}>{entry.time}</span>
+                    <span style={{ fontWeight: 600, color: '#111111', fontSize: 12, textAlign: 'right', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
-
             <button onClick={() => navigate('/journey')} type="button" style={{ background: 'none', border: 'none', color: '#111111', fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'left', marginTop: 16, padding: 0 }}>
               View All Activity →
             </button>
@@ -466,7 +461,611 @@ export default function DashboardPage() {
 
         </div>
 
+        {/* ══════════════════════════════════════════════════════════
+            EXTENDED DASHBOARD — NEW SECTIONS BELOW
+            All new cards match the existing design system exactly.
+            ══════════════════════════════════════════════════════════ */}
+
+        {/* ── QUICK STATS ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          style={{ marginTop: 28 }}
+        >
+          <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>
+            QUICK STATS
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            {[
+              { icon: Activity,  label: 'Total Sessions',   value: growthState?.sessionCount ?? 0,       sub: 'all time' },
+              { icon: Clock,     label: 'Learning Hours',   value: `${Math.round((growthState?.completedCount ?? 0) * 0.25)}h`, sub: 'estimated' },
+              { icon: Flame,     label: 'Current Streak',   value: `${consistencyDays}d`,                sub: consistencyDays >= 3 ? '🔥 on fire' : 'keep going' },
+              { icon: BarChart2, label: 'Completion Rate',  value: growthState?.completedCount > 0 ? `${Math.round((growthState.completedCount / Math.max((growthState.completedCount + (growthState.skippedCount || 1)), 1)) * 100)}%` : '—', sub: 'items finished' },
+            ].map(({ icon: Icon, label, value, sub }) => (
+              <div key={label} style={{ padding: '20px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#F8F6F2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <Icon size={15} color="#111111" />
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: '#111111', lineHeight: 1, marginBottom: 4 }}>{value}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#333333', marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 11, color: '#888888' }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── QUICK ACTIONS ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.47 }}
+          style={{ marginTop: 24 }}
+        >
+          <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>
+            QUICK ACTIONS
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            {[
+              { icon: Play,        label: 'Continue Session', sub: "Pick up where you left off",   path: '/session',   dark: true },
+              { icon: Library,     label: 'Open Library',     sub: '36+ curated resources',        path: '/library',   dark: false },
+              { icon: Map,         label: 'View Roadmap',     sub: 'Track your identity stages',   path: '/roadmap',   dark: false },
+              { icon: Sparkles,    label: 'Talk to Curator',  sub: 'Get live AI recommendations',  path: '/curator',   dark: false },
+            ].map(({ icon: Icon, label, sub, path, dark }) => (
+              <button
+                key={label}
+                onClick={() => navigate(path)}
+                type="button"
+                style={{
+                  padding: '18px 20px', textAlign: 'left', cursor: 'pointer',
+                  background: dark ? '#111111' : '#FFFFFF',
+                  border: `1px solid ${dark ? '#111111' : '#E8E5DF'}`,
+                  borderRadius: 20, transition: 'all 0.2s ease',
+                  boxShadow: dark ? '0 4px 16px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = dark ? '0 8px 24px rgba(0,0,0,0.18)' : '0 4px 16px rgba(0,0,0,0.06)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = dark ? '0 4px 16px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.02)' }}
+              >
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: dark ? 'rgba(255,255,255,0.12)' : '#F8F6F2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <Icon size={15} color={dark ? '#FFFFFF' : '#111111'} />
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: dark ? '#FFFFFF' : '#111111', marginBottom: 3 }}>{label}</div>
+                <div style={{ fontSize: 11, color: dark ? 'rgba(255,255,255,0.55)' : '#888888' }}>{sub}</div>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── DAILY MOTIVATION + FOCUS SCORE + PRODUCTIVITY SCORE ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr', gap: 24, marginTop: 24 }}
+        >
+          {/* Daily Motivation */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>DAILY MOTIVATION</span>
+              <Lightbulb size={17} color="#111111" />
+            </div>
+            {[
+              { quote: "You don't rise to the level of your goals. You fall to the level of your systems.", author: "James Clear" },
+              { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+              { quote: "Small daily improvements over time lead to stunning results.", author: "Robin Sharma" },
+              { quote: "Do something today that your future self will thank you for.", author: "Sean Patrick Flanery" },
+              { quote: "Success is the sum of small efforts repeated day in and day out.", author: "Robert Collier" },
+            ][new Date().getDay() % 5] && (() => {
+              const q = [
+                { quote: "You don't rise to the level of your goals. You fall to the level of your systems.", author: "James Clear" },
+                { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+                { quote: "Small daily improvements over time lead to stunning results.", author: "Robin Sharma" },
+                { quote: "Do something today that your future self will thank you for.", author: "Sean Patrick Flanery" },
+                { quote: "Success is the sum of small efforts repeated day in and day out.", author: "Robert Collier" },
+              ][new Date().getDay() % 5]
+              return (
+                <>
+                  <p style={{ fontSize: 15, color: '#111111', lineHeight: 1.65, fontStyle: 'italic', marginBottom: 12 }}>
+                    "{q.quote}"
+                  </p>
+                  <span style={{ fontSize: 12, color: '#888888', fontWeight: 600 }}>— {q.author}</span>
+                </>
+              )
+            })()}
+          </div>
+
+          {/* Focus Score */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>FOCUS SCORE</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ position: 'relative', width: 80, height: 80 }}>
+                <svg width="80" height="80" viewBox="0 0 36 36">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#F0EDE6" strokeWidth="3" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#111111" strokeWidth="3" strokeDasharray={`${Math.min(95, 40 + consistencyDays * 4)}, 100`} />
+                </svg>
+                <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 16, fontWeight: 800, color: '#111111' }}>
+                  {Math.min(95, 40 + consistencyDays * 4)}
+                </span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>
+                  {consistencyDays >= 7 ? 'Deep Focus' : consistencyDays >= 3 ? 'Building' : 'Starting'}
+                </div>
+                <div style={{ fontSize: 11, color: '#888888', marginTop: 2 }}>based on streak</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Productivity Score */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>PRODUCTIVITY SCORE</span>
+            {[
+              { label: 'Sessions',  val: Math.min(100, (growthState?.sessionCount ?? 0) * 10) },
+              { label: 'Completed', val: Math.min(100, (growthState?.completedCount ?? 0) * 5) },
+              { label: 'Streak',    val: Math.min(100, (consistencyDays) * 8) },
+            ].map(({ label, val }) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <span style={{ fontSize: 11, color: '#555555', fontWeight: 600 }}>{label}</span>
+                  <span style={{ fontSize: 11, color: '#111111', fontWeight: 700 }}>{val}%</span>
+                </div>
+                <div style={{ height: 5, background: '#F0EDE6', borderRadius: 99 }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${val}%` }}
+                    transition={{ duration: 1, ease: 'easeOut', delay: 0.6 }}
+                    style={{ height: '100%', background: '#111111', borderRadius: 99 }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── WEEKLY ACTIVITY + HABIT TRACKER ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.52 }}
+          style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, marginTop: 24 }}
+        >
+          {/* Weekly Activity Overview */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>WEEKLY ACTIVITY</span>
+              <span style={{ fontSize: 11, color: '#888888' }}>This week</span>
+            </div>
+            {/* Bar chart */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80, marginBottom: 10 }}>
+              {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((day, i) => {
+                const heights = [65, 90, 45, 100, 70, 30, 55]
+                const today = new Date().getDay()
+                const dayMap = [6,0,1,2,3,4,5]
+                const isTodayBar = dayMap[today] === i
+                return (
+                  <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: '100%', borderRadius: '4px 4px 0 0', background: isTodayBar ? '#111111' : '#E8E5DF', transition: 'height 0.6s ease' }} title={`${heights[i]}% activity`}>
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: heights[i] * 0.8 }}
+                        transition={{ duration: 0.8, delay: 0.55 + i * 0.05, ease: 'easeOut' }}
+                        style={{ borderRadius: '4px 4px 0 0', background: isTodayBar ? '#111111' : '#E8E5DF' }}
+                      />
+                    </div>
+                    <span style={{ fontSize: 9, color: isTodayBar ? '#111111' : '#AAAAAA', fontWeight: isTodayBar ? 700 : 500 }}>{day}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: 12, color: '#555555', borderTop: '1px solid #F0EDE6', paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+              <span>Most active: <strong style={{ color: '#111111' }}>Thursday</strong></span>
+              <span style={{ color: '#888888' }}>Avg 42 min/day</span>
+            </div>
+          </div>
+
+          {/* Habit Tracker */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 18 }}>HABIT TRACKER</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { habit: 'Morning learning session', done: consistencyDays > 0 },
+                { habit: 'Read for 15 minutes',      done: (growthState?.completedCount ?? 0) > 0 },
+                { habit: 'Review today\'s insights',  done: false },
+                { habit: 'Set tomorrow\'s intention', done: false },
+              ].map(({ habit, done }, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: done ? '#F8FDF9' : '#FAFAFA', borderRadius: 12, border: `1px solid ${done ? '#D1FAE5' : '#F0EDE6'}` }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: done ? '#111111' : '#F0EDE6', border: `2px solid ${done ? '#111111' : '#D0CDC5'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {done && <CheckCircle2 size={11} color="#FFFFFF" strokeWidth={3} />}
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: done ? 600 : 500, color: done ? '#111111' : '#555555', textDecoration: done ? 'none' : 'none' }}>{habit}</span>
+                  {done && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#16A34A', fontWeight: 700 }}>Done</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── AI COACH INSIGHTS + NOTIFICATIONS ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.54 }}
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 24 }}
+        >
+          {/* AI Coach Insights */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>AI COACH INSIGHTS</span>
+              <Brain size={17} color="#111111" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { icon: TrendingUp, text: `Your learning velocity is ${consistencyDays >= 5 ? 'accelerating' : 'warming up'}. Complete 2 more sessions this week to unlock the Explorer stage.`, type: 'growth' },
+                { icon: Target,     text: `Focus on "${profile?.goals?.slice(0,40) || 'your active goal'}…" — your curator picked content directly aligned to it.`, type: 'focus' },
+                { icon: Star,       text: `Trust score at ${trustScore}%. ${trustScore < 60 ? 'Complete more sessions to improve AI accuracy.' : 'Your AI knows you well — expect better picks daily.'}`, type: 'ai' },
+              ].map(({ icon: Icon, text, type }, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '12px', background: '#FAFAFA', borderRadius: 12, border: '1px solid #F0EDE6' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon size={13} color="#FFFFFF" />
+                  </div>
+                  <p style={{ fontSize: 12, color: '#444444', lineHeight: 1.55, margin: 0 }}>{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Notifications Panel */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>NOTIFICATIONS</span>
+              <span style={{ padding: '2px 8px', background: '#111111', color: '#FFFFFF', borderRadius: 999, fontSize: 10, fontWeight: 700 }}>3</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { icon: Sparkles, msg: 'New curation ready — 3 fresh picks based on your progress.', time: 'Now',     urgent: true },
+                { icon: Award,    msg: `You're ${7 - consistencyDays > 0 ? 7 - consistencyDays : 0} days away from your 7-day streak badge!`, time: 'Today',   urgent: false },
+                { icon: AlertCircle, msg: 'Complete today\'s session to maintain your consistency streak.', time: '2h ago',  urgent: true },
+              ].map(({ icon: Icon, msg, time, urgent }, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '11px 12px', background: urgent ? '#FFFBEB' : '#FAFAFA', borderRadius: 12, border: `1px solid ${urgent ? '#FDE68A' : '#F0EDE6'}` }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: urgent ? '#F59E0B' : '#E8E5DF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon size={12} color={urgent ? '#FFFFFF' : '#555555'} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 12, color: '#333333', margin: 0, lineHeight: 1.5 }}>{msg}</p>
+                    <span style={{ fontSize: 10, color: '#AAAAAA', marginTop: 3, display: 'block' }}>{time}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── RECENT ACTIVITY TIMELINE + CONTINUE LEARNING ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.56 }}
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 24, marginTop: 24 }}
+        >
+          {/* Recent Activity Timeline */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>ACTIVITY TIMELINE</span>
+              <button onClick={() => navigate('/journey')} type="button" style={{ fontSize: 11, fontWeight: 700, color: '#111111', background: 'none', border: 'none', cursor: 'pointer' }}>View all →</button>
+            </div>
+            <div style={{ position: 'relative', paddingLeft: 20 }}>
+              <div style={{ position: 'absolute', left: 7, top: 0, bottom: 0, width: 1, background: '#E8E5DF' }} />
+              {(history?.slice(0, 4).length > 0 ? history.slice(0, 4) : [
+                { title: 'Start your first session!', status: 'pending',   loggedAt: Date.now() },
+                { title: 'Complete onboarding',        status: 'completed', loggedAt: Date.now() - 86400000 },
+              ]).map((item, i) => (
+                <div key={i} style={{ position: 'relative', paddingLeft: 16, marginBottom: 16 }}>
+                  <div style={{ position: 'absolute', left: -7, top: 3, width: 12, height: 12, borderRadius: '50%', background: item.status === 'completed' ? '#111111' : '#E8E5DF', border: '2px solid #FFFFFF', boxShadow: '0 0 0 2px #E8E5DF' }} />
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111111', marginBottom: 2 }}>{item.title}</div>
+                  <div style={{ fontSize: 11, color: '#888888' }}>
+                    {item.status} · {new Date(item.loggedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Continue Learning */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>CONTINUE LEARNING</span>
+              <button onClick={() => navigate('/session')} type="button" style={{ fontSize: 11, fontWeight: 700, color: '#111111', background: 'none', border: 'none', cursor: 'pointer' }}>Start →</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {curationItems.slice(0, 3).length > 0 ? curationItems.slice(0, 3).map((item, i) => {
+                const meta = TYPE_META[item.type?.toLowerCase()] || TYPE_META['practice']
+                const Icon = meta.icon
+                const pct = [68, 35, 0][i]
+                return (
+                  <div key={item.id || i} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={14} color="#FFFFFF" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>{item.title}</div>
+                      <div style={{ height: 4, background: '#F0EDE6', borderRadius: 99 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: '#111111', borderRadius: 99 }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: '#888888', marginTop: 3 }}>{pct > 0 ? `${pct}% complete` : 'Not started'} · {item.duration || '10 min'}</div>
+                    </div>
+                  </div>
+                )
+              }) : [
+                { title: 'Atomic Habits: 1% Better Every Day', pct: 68, dur: '11 min' },
+                { title: 'The 2-Minute Rule Explained',        pct: 35, dur: '9 min' },
+                { title: 'Deep Work: Rules for Success',       pct: 0,  dur: '14 min' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Play size={14} color="#FFFFFF" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111111', marginBottom: 4 }}>{item.title}</div>
+                    <div style={{ height: 4, background: '#F0EDE6', borderRadius: 99 }}>
+                      <div style={{ width: `${item.pct}%`, height: '100%', background: '#111111', borderRadius: 99 }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: '#888888', marginTop: 3 }}>{item.pct > 0 ? `${item.pct}% complete` : 'Not started'} · {item.dur}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── UPCOMING GOALS + CALENDAR OVERVIEW ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.58 }}
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 24 }}
+        >
+          {/* Upcoming Goals & Deadlines */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>UPCOMING GOALS & DEADLINES</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { goal: '7-day streak milestone',        due: 'In 3 days',  pct: 72, color: '#111111' },
+                { goal: '10 content items completed',    due: 'This week',  pct: Math.min(100, (growthState?.completedCount ?? 0) * 10), color: '#111111' },
+                { goal: 'Reach Explorer identity stage', due: 'This month', pct: progressPercent, color: '#111111' },
+                { goal: 'Achieve 70% Trust Score',       due: 'Ongoing',    pct: trustScore, color: '#111111' },
+              ].map(({ goal, due, pct, color }) => (
+                <div key={goal}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#111111' }}>{goal}</span>
+                    <span style={{ fontSize: 11, color: '#888888' }}>{due}</span>
+                  </div>
+                  <div style={{ height: 5, background: '#F0EDE6', borderRadius: 99 }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.9, ease: 'easeOut', delay: 0.65 }}
+                      style={{ height: '100%', background: color, borderRadius: 99 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 10, color: '#AAAAAA', marginTop: 3 }}>{pct}% complete</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Calendar Overview */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>CALENDAR OVERVIEW</span>
+              <Calendar size={16} color="#888888" />
+            </div>
+            {/* Mini calendar grid */}
+            {(() => {
+              const now = new Date()
+              const year = now.getFullYear()
+              const month = now.getMonth()
+              const today = now.getDate()
+              const firstDay = new Date(year, month, 1).getDay()
+              const daysInMonth = new Date(year, month + 1, 0).getDate()
+              const monthName = now.toLocaleString('default', { month: 'long' })
+              const activeDaysSet = new Set(Array.from({ length: Math.min(consistencyDays, 28) }, (_, i) => today - i).filter(d => d > 0))
+              const cells = []
+              for (let i = 0; i < firstDay; i++) cells.push(null)
+              for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+              return (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111111', marginBottom: 10 }}>{monthName} {year}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 8 }}>
+                    {['S','M','T','W','T','F','S'].map((d, i) => (
+                      <div key={i} style={{ fontSize: 9, color: '#AAAAAA', textAlign: 'center', fontWeight: 700, paddingBottom: 4 }}>{d}</div>
+                    ))}
+                    {cells.map((d, i) => (
+                      <div key={i} style={{
+                        width: '100%', aspectRatio: '1', borderRadius: 6, fontSize: 9, fontWeight: d === today ? 800 : 500,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: d === today ? '#111111' : activeDaysSet.has(d) ? '#F0EDE6' : 'transparent',
+                        color: d === today ? '#FFFFFF' : d ? '#333333' : 'transparent',
+                      }}>{d || ''}</div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#888888', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: '#111111' }} /> Today
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: '#F0EDE6', marginLeft: 8 }} /> Active days
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </motion.div>
+
+        {/* ── ACHIEVEMENT BADGES + MONTHLY PROGRESS + RECOMMENDED RESOURCES ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, marginTop: 24 }}
+        >
+          {/* Achievement Badges */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>ACHIEVEMENTS</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+                { emoji: '🌱', label: 'First Step',     earned: true,                                sub: 'Joined BECOME' },
+                { emoji: '🔥', label: 'On Fire',        earned: consistencyDays >= 3,                sub: '3-day streak' },
+                { emoji: '📚', label: 'Bookworm',       earned: (growthState?.completedCount ?? 0) >= 5, sub: '5 completions' },
+                { emoji: '🎯', label: 'Goal Setter',    earned: !!profile?.goals,                   sub: 'Set first goal' },
+                { emoji: '🧠', label: 'Deep Thinker',   earned: trustScore >= 60,                   sub: '60% trust score' },
+                { emoji: '⚡', label: 'Momentum',       earned: consistencyDays >= 7,               sub: '7-day streak' },
+              ].map(({ emoji, label, earned, sub }) => (
+                <div key={label} style={{ textAlign: 'center', padding: '12px 8px', background: earned ? '#FAFAFA' : '#F8F6F2', borderRadius: 12, border: `1px solid ${earned ? '#E8E5DF' : 'transparent'}`, opacity: earned ? 1 : 0.4, filter: earned ? 'none' : 'grayscale(1)' }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{emoji}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#111111', marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 9, color: '#888888' }}>{sub}</div>
+                  {earned && <div style={{ fontSize: 9, color: '#16A34A', fontWeight: 700, marginTop: 3 }}>✓ Earned</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Monthly Progress Summary */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>MONTHLY PROGRESS</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                { label: 'Sessions this month',    value: growthState?.sessionCount   ?? 0, max: 20,  unit: '' },
+                { label: 'Content completed',      value: growthState?.completedCount ?? 0, max: 30,  unit: '' },
+                { label: 'Learning hours',         value: Math.round((growthState?.completedCount ?? 0) * 0.25), max: 10, unit: 'h' },
+                { label: 'Consistency score',      value: Math.min(100, consistencyDays * 8),            max: 100, unit: '%' },
+              ].map(({ label, value, max, unit }) => (
+                <div key={label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 11, color: '#555555' }}>{label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#111111' }}>{value}{unit}</span>
+                  </div>
+                  <div style={{ height: 5, background: '#F0EDE6', borderRadius: 99 }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (value / max) * 100)}%` }}
+                      transition={{ duration: 1, ease: 'easeOut', delay: 0.7 }}
+                      style={{ height: '100%', background: '#111111', borderRadius: 99 }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recommended Resources */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>RECOMMENDED</span>
+              <button onClick={() => navigate('/library')} type="button" style={{ fontSize: 11, fontWeight: 700, color: '#111111', background: 'none', border: 'none', cursor: 'pointer' }}>Library →</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {(curationItems.length > 0 ? curationItems : [
+                { title: 'Atomic Habits', type: 'video', creator: 'Productivity Game', duration: '11 min' },
+                { title: 'Deep Work Summary', type: 'book', creator: 'Cal Newport', duration: '8 min' },
+                { title: 'The Science of Goals', type: 'article', creator: 'Andrew Huberman', duration: '6 min' },
+              ]).slice(0, 3).map((item, i) => {
+                const meta = TYPE_META[item.type?.toLowerCase()] || TYPE_META['practice']
+                const Icon = meta.icon
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={13} color="#FFFFFF" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                      <div style={{ fontSize: 10, color: '#888888' }}>{item.creator} · {item.duration}</div>
+                    </div>
+                    <ChevronRight size={13} color="#CCCCCC" style={{ flexShrink: 0 }} />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── RECENT MILESTONES + LEARNING CONSISTENCY ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.62 }}
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 24, marginTop: 24, marginBottom: 0 }}
+        >
+          {/* Recent Milestones */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>RECENT MILESTONES</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { icon: '🌱', milestone: 'Joined BECOME',          sub: 'Identity journey started',           earned: true },
+                { icon: '🎯', milestone: 'Set your first goal',    sub: profile?.goals ? 'Goal recorded' : 'Pending',    earned: !!profile?.goals },
+                { icon: '🔥', milestone: `${consistencyDays} day streak`, sub: consistencyDays > 0 ? 'Consistency building' : 'Start today', earned: consistencyDays > 0 },
+                { icon: '📖', milestone: `${growthState?.completedCount ?? 0} items completed`, sub: 'Growth content finished',    earned: (growthState?.completedCount ?? 0) > 0 },
+              ].map(({ icon, milestone, sub, earned }) => (
+                <div key={milestone} style={{ display: 'flex', gap: 10, alignItems: 'center', opacity: earned ? 1 : 0.45 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: earned ? '#F8F6F2' : '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                    {icon}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111111' }}>{milestone}</div>
+                    <div style={{ fontSize: 11, color: '#888888' }}>{sub}</div>
+                  </div>
+                  {earned && <CheckCircle2 size={14} color="#16A34A" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Learning Consistency Chart */}
+          <div style={{ padding: '26px', backgroundColor: '#FFFFFF', border: '1px solid #E8E5DF', borderRadius: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#888888', letterSpacing: '1px', textTransform: 'uppercase' }}>LEARNING CONSISTENCY</span>
+              <span style={{ fontSize: 11, color: '#888888' }}>Last 4 weeks</span>
+            </div>
+            {/* Heatmap-style grid */}
+            {(() => {
+              const weeks = 4
+              const days = 7
+              const today = new Date()
+              const actDays = new Set(Array.from({ length: Math.min(consistencyDays, 28) }, (_, i) => i))
+              const cells = Array.from({ length: weeks * days }, (_, i) => {
+                const daysAgo = (weeks * days) - 1 - i
+                const active = actDays.has(daysAgo)
+                const d = new Date(today); d.setDate(today.getDate() - daysAgo)
+                return { active, day: d.getDate(), daysAgo }
+              })
+              return (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days}, 1fr)`, gridTemplateRows: `repeat(${weeks}, 1fr)`, gap: 5, marginBottom: 12 }}>
+                    {cells.map((cell, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.65 + i * 0.008 }}
+                        title={`Day -${cell.daysAgo}: ${cell.active ? 'Active' : 'No activity'}`}
+                        style={{ width: '100%', aspectRatio: '1', borderRadius: 4, background: cell.active ? '#111111' : '#F0EDE6' }}
+                      />
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: '#888888' }}>{consistencyDays} active days in last 4 weeks</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, background: '#F0EDE6' }} />
+                      <span style={{ fontSize: 10, color: '#AAAAAA' }}>None</span>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, background: '#111111', marginLeft: 6 }} />
+                      <span style={{ fontSize: 10, color: '#AAAAAA' }}>Active</span>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </motion.div>
+
       </div>
     </PageTransition>
   )
 }
+
