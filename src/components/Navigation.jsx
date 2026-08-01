@@ -46,8 +46,8 @@ export default function Navigation() {
       transition={{ duration: 0.25, ease: 'easeInOut' }}
       style={{
         position: 'fixed', top: 0, left: 0, height: '100vh',
-        backgroundColor: '#F8F6F2',
-        borderRight: '1px solid #E5E2DC',
+        backgroundColor: '#FAF8F5',
+        borderRight: '1px solid #E8E5DF',
         display: 'flex', flexDirection: 'column',
         zIndex: 100, overflow: 'hidden',
         boxSizing: 'border-box',

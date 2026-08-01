@@ -23,7 +23,7 @@ import { hasProfile } from './services/storage.js'
 
 import './pvt-agent-styles.css'
 
-// Context so any child can call back to the landing page
+// Context so any child component can call back to the main Hero Landing Page
 export const BackToHomeContext = createContext(() => {})
 export const useBackToHome = () => useContext(BackToHomeContext)
 
@@ -87,7 +87,7 @@ export default function PvtAgentApp({ onBackToHome }) {
         className="pvt-agent-root"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
       >
         <AppProvider>
           <MemoryRouter initialEntries={[initialRoute]} initialIndex={0}>

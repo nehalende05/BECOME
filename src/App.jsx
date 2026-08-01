@@ -29,6 +29,14 @@ export default function App() {
     setCurrentView('agent'); // PvtAgentApp decides the initial route
   };
 
+  // Direct open Dashboard (e.g. from nav link if profile exists)
+  const handleOpenDashboard = () => {
+    setInitialAgentRoute('/dashboard');
+    setCurrentView('agent');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Return to Stage 1: Landing page with Hero
   const handleBackToHome = () => {
     setCurrentView('landing');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -36,7 +44,12 @@ export default function App() {
 
   // Render the full BECOME app (onboarding or dashboard, depending on profile)
   if (currentView === 'agent') {
-    return <PvtAgentApp onBackToHome={handleBackToHome} />;
+    return (
+      <PvtAgentApp
+        onBackToHome={handleBackToHome}
+        initialRoute={initialAgentRoute}
+      />
+    );
   }
 
   // Otherwise render the landing page
