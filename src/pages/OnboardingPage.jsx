@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight, ArrowLeft, Check, Sparkles,
-  User, Target, Brain, Monitor, Leaf
+  User, Target, Brain, Monitor, Leaf,
+  Eye, Headphones, BookOpen, Zap
 } from 'lucide-react'
 import { useApp } from '../store/AppContext.jsx'
 import { updateGrowthState } from '../services/storage.js'
@@ -38,10 +39,10 @@ const TARGET_TRAIT_OPTIONS = [
 ]
 
 const LEARNING_STYLE_OPTIONS = [
-  { id: 'visual', label: 'Visual', emoji: '👁️', desc: 'Diagrams, videos, illustrations' },
-  { id: 'auditory', label: 'Auditory', emoji: '🎧', desc: 'Podcasts, discussions, audio' },
-  { id: 'reading', label: 'Reading', emoji: '📖', desc: 'Books, articles, long-form' },
-  { id: 'kinesthetic', label: 'Doing', emoji: '⚡', desc: 'Exercises, challenges, action' },
+  { id: 'visual', label: 'Visual', icon: Eye, desc: 'I learn by seeing — diagrams, videos, illustrations' },
+  { id: 'auditory', label: 'Auditory', icon: Headphones, desc: 'I learn by listening — podcasts, discussions' },
+  { id: 'reading', label: 'Reading', icon: BookOpen, desc: 'I learn by reading — books, articles, long-form' },
+  { id: 'kinesthetic', label: 'Doing', icon: Zap, desc: 'I learn by applying — exercises, challenges, action' },
 ]
 
 const MEDIA_OPTIONS = [
@@ -98,13 +99,14 @@ const CardGrid = ({ options, selected, onToggle, multi = false }) => (
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginTop: 20 }}>
     {options.map(opt => {
       const isSelected = multi ? selected.includes(opt.id) : selected === opt.id
+      const IconComponent = opt.icon
       return (
         <button
           key={opt.id}
           onClick={() => onToggle(opt.id)}
           type="button"
           style={{
-            padding: '18px 16px',
+            padding: '20px 18px',
             background: isSelected ? '#FFFFFF' : '#FAFAFA',
             border: `1.5px solid ${isSelected ? '#111111' : '#E8E5DF'}`,
             borderRadius: 16,
@@ -118,8 +120,8 @@ const CardGrid = ({ options, selected, onToggle, multi = false }) => (
           {isSelected && (
             <div style={{
               position: 'absolute',
-              top: 10,
-              right: 10,
+              top: 12,
+              right: 12,
               width: 18,
               height: 18,
               borderRadius: '50%',
@@ -131,11 +133,17 @@ const CardGrid = ({ options, selected, onToggle, multi = false }) => (
               <Check size={10} color="white" strokeWidth={3} />
             </div>
           )}
-          <div style={{ fontSize: 22, marginBottom: 8 }}>{opt.emoji}</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#111111', marginBottom: 2 }}>
+          {IconComponent ? (
+            <div style={{ marginBottom: 12, color: '#111111' }}>
+              <IconComponent size={22} strokeWidth={2.2} />
+            </div>
+          ) : (
+            <div style={{ fontSize: 22, marginBottom: 8 }}>{opt.emoji}</div>
+          )}
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#111111', marginBottom: 4 }}>
             {opt.label}
           </div>
-          <div style={{ fontSize: 12, color: '#666666', lineHeight: 1.4 }}>
+          <div style={{ fontSize: 12, color: '#666666', lineHeight: 1.45 }}>
             {opt.desc}
           </div>
         </button>
@@ -512,7 +520,7 @@ export default function OnboardingPage() {
                   How do you learn <span style={{ fontStyle: 'italic' }}>best?</span>
                 </h2>
                 <p style={{ color: '#555555', fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>
-                  Select all modalities that suit your learning style.
+                  Select all that apply — most of us learn through multiple modalities.
                 </p>
                 <CardGrid
                   options={LEARNING_STYLE_OPTIONS}
