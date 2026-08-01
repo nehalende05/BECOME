@@ -27,9 +27,14 @@ const CURRENT_TRAIT_OPTIONS = [
 ]
 
 const TARGET_TRAIT_OPTIONS = [
-  'Disciplined', 'Deeply focused', 'Resilient', 'Consistent',
-  'Confident', 'Creative', 'Purpose-driven', 'Calm under pressure',
-  'Authentic', 'Growth-oriented', 'High-performer', 'Empathetic leader',
+  'Disciplined', 'Deeply Focused', 'Resilient', 'Consistent',
+  'Confident', 'Growth Mindset', 'Action-oriented', 'Visionary',
+  'Wealthy', 'Healthy & Active', 'Peaceful & Calm', 'Courageous',
+  'Accountable', 'Mindful & Present', 'Well-organized', 'Financially Literate',
+  'Confident Speaker', 'Tech Leader', 'High-performer', 'Creative',
+  'Productive', 'Self-trusting', 'Proactive', 'Optimistic',
+  'Empathetic Leader', 'Strategic Thinker', 'Unstoppable', 'Open-minded',
+  'Purpose-driven', 'My Highest Self'
 ]
 
 const LEARNING_STYLE_OPTIONS = [
